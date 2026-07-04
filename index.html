@@ -136,6 +136,16 @@
   .history-item img { width: 100%; height: 100%; object-fit: cover; }
   .history-item .cap { position: absolute; bottom: 0; left: 0; right: 0; padding: 6px; background: linear-gradient(transparent, rgba(0,0,0,.65)); color: #fff; font-size: 10px; opacity: 0; transition: .2s; }
   .history-item:hover .cap { opacity: 1; }
+  .history-del {
+    position: absolute; top: 4px; right: 4px;
+    width: 22px; height: 22px; border-radius: 50%;
+    background: rgba(0,0,0,.55); color: #fff;
+    border: none; cursor: pointer; font-size: 12px;
+    display: flex; align-items: center; justify-content: center;
+    opacity: 0; transition: .15s; z-index: 2;
+  }
+  .history-item:hover .history-del { opacity: 1; }
+  .history-del:hover { background: var(--red); }
 
   /* ===== Lightbox ===== */
   .lightbox { position: fixed; inset: 0; background: rgba(0,0,0,.92); z-index: 9999; display: flex; align-items: center; justify-content: center; cursor: zoom-out; }
@@ -744,24 +754,67 @@
 
   // ===== History =====
   function saveHistory(r) {
-    const h = JSON.parse(localStorage.getItem('aihist')||'[]');
-    h.unshift({ id:Date.now().toString(36)+Math.random().toString(36).slice(2,6), prompt:r.prompt, model:r.modelName, imgUrl:r.imgUrl, createdAt:Date.now() });
-    localStorage.setItem('aihist', JSON.stringify(h.slice(0,50)));
-    renderHistory(h.slice(0,50));
+    // Generate a small thumbnail to avoid blowing up localStorage
+    makeThumb(r.imgUrl, 200).then(thumb => {
+      const h = JSON.parse(localStorage.getItem('aihist')||'[]');
+      h.unshift({ id:Date.now().toString(36)+Math.random().toString(36).slice(2,6), prompt:r.prompt, model:r.modelName, imgUrl:thumb, fullUrl:r.imgUrl, createdAt:Date.now() });
+      try {
+        localStorage.setItem('aihist', JSON.stringify(h.slice(0,50)));
+        renderHistory(h.slice(0,50));
+      } catch(e) {
+        // Quota exceeded, remove oldest and retry
+        h.pop();
+        localStorage.setItem('aihist', JSON.stringify(h.slice(0,30)));
+        renderHistory(h.slice(0,30));
+      }
+    }).catch(() => {
+      // Fallback: store without image
+      const h = JSON.parse(localStorage.getItem('aihist')||'[]');
+      h.unshift({ id:Date.now().toString(36)+Math.random().toString(36).slice(2,6), prompt:r.prompt, model:r.modelName, imgUrl:'', fullUrl:r.imgUrl, createdAt:Date.now() });
+      localStorage.setItem('aihist', JSON.stringify(h.slice(0,50)));
+      renderHistory(h.slice(0,50));
+    });
+  }
+
+  // Create thumbnail from image URL (data URL or http URL)
+  function makeThumb(url, maxSize) {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => {
+        let w = img.width, h = img.height;
+        if (w > h) { h = Math.round(h * maxSize / w); w = maxSize; }
+        else { w = Math.round(w * maxSize / h); h = maxSize; }
+        const c = document.createElement('canvas'); c.width = w; c.height = h;
+        c.getContext('2d').drawImage(img, 0, 0, w, h);
+        resolve(c.toDataURL('image/jpeg', 0.6));
+      };
+      img.onerror = () => reject(new Error('failed to load'));
+      img.src = url;
+    });
   }
   function loadHistory() { renderHistory(JSON.parse(localStorage.getItem('aihist')||'[]')); }
   function renderHistory(items) {
     const g = document.getElementById('historyGrid');
     if (!items.length) { g.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:20px;color:var(--text3);">暂无生成记录</div>'; return; }
     g.innerHTML = items.map(i => `
-      <div class="history-item" onclick="loadFromHistory('${i.id}')" title="${esc(i.prompt.slice(0,40))}">
-        <img src="${i.imgUrl}" alt="" loading="lazy"><div class="cap">${esc(i.prompt.slice(0,25))}...</div>
+      <div class="history-item">
+        <img src="${i.imgUrl || i.fullUrl || ''}" alt="" loading="lazy" onclick="loadFromHistory('${i.id}')" style="width:100%;height:100%;object-fit:cover;cursor:pointer;">
+        <button class="history-del" onclick="event.stopPropagation();deleteHistory('${i.id}')" title="删除">✕</button>
+        <div class="cap" onclick="loadFromHistory('${i.id}')">${esc(i.prompt.slice(0,25))}...</div>
       </div>`).join('');
+  }
+  function deleteHistory(id) {
+    const h = JSON.parse(localStorage.getItem('aihist')||'[]');
+    const filtered = h.filter(x => x.id !== id);
+    localStorage.setItem('aihist', JSON.stringify(filtered));
+    renderHistory(filtered);
+    toast('已删除', 'ok');
   }
   function loadFromHistory(id) {
     const h = JSON.parse(localStorage.getItem('aihist')||'[]');
     const it = h.find(x => x.id===id); if (!it) return;
-    S.lastResult = { prompt:it.prompt, model:'-', modelName:it.model, imgUrl:it.imgUrl, size:'-', duration:'-' };
+    S.lastResult = { prompt:it.prompt, model:'-', modelName:it.model, imgUrl:it.fullUrl || it.imgUrl, size:'-', duration:'-' };
     document.getElementById('resultPlaceholder').classList.add('hidden');
     document.getElementById('loadingBlock').classList.add('hidden');
     document.getElementById('resultImgWrap').classList.remove('hidden');
