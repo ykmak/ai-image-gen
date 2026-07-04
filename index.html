@@ -229,7 +229,7 @@
       <div class="card-label">🖼️ 参考图（可选）</div>
       <div class="upload-zone" id="uploadZone" onclick="document.getElementById('fileInput').click()">
         <span class="icon">📁</span><p>拖拽或点击上传参考图</p>
-        <p class="hint">PNG / JPG / WEBP · 单张 ≤ 10MB</p>
+        <p class="hint">PNG / JPG / WEBP · 无大小限制</p>
         <input type="file" id="fileInput" accept="image/png,image/jpeg,image/jpg,image/webp" onchange="handleFileSelect(event)" hidden>
       </div>
       <div class="upload-preview hidden" id="uploadPreview">
@@ -438,7 +438,6 @@
   function processFile(file) {
     const ok = ['image/png','image/jpeg','image/jpg','image/webp'];
     if (!ok.includes(file.type)) { toast('不支持的格式，请上传 PNG/JPG/WEBP', 'err'); return; }
-    if (file.size > 10*1024*1024) { toast(`图片过大 (${(file.size/1024/1024).toFixed(1)}MB)，上限 10MB`, 'err'); return; }
     S.refFile = file;
     const r = new FileReader();
     r.onload = e => {
