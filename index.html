@@ -559,13 +559,17 @@
         const dataUrl = await blobToDataUrl(resizedBlob);
         console.log('📎 Ref image: orig='+(S.refFile.size/1024).toFixed(0)+'KB resized='+(resizedBlob.size/1024).toFixed(0)+'KB dataUrl='+(dataUrl.length/1024).toFixed(0)+'KB');
 
-        const modeMap = { style: '请仅参考这张图的风格/画风，', composition: '请仅参考这张图的构图/布局，', img2img: '请参考这张图进行创作，' };
+        const modeMap = {
+          img2img: '以下是一张参考图，仅用于提供整体方向和灵感。请不要直接修改或编辑这张参考图。请根据下面的文字描述从头生成一张全新的图片：',
+          style: '以下是一张参考图，请仅提取其艺术风格、色调和笔触特点，忽略参考图的内容和主体。请用提取的风格，根据下面的文字描述生成一张全新的图片：',
+          composition: '以下是一张参考图，请仅提取其构图、布局和空间关系，忽略参考图的内容和主体。请用提取的构图，根据下面的文字描述生成一张全新的图片：'
+        };
         const modeT = modeMap[S.refMode] || modeMap.img2img;
 
         body = {
           model: modelName,
           messages: [{ role: 'user', content: [
-            { type: 'text', text: modeT + '根据以下描述生成一张新图片：' + prompt },
+            { type: 'text', text: modeT + '文字描述：' + prompt },
             { type: 'image_url', image_url: { url: dataUrl } }
           ]}],
           max_tokens: 4096
