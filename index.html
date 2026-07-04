@@ -187,9 +187,14 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Micr
   </select>
   <input type="url" id="custEp" placeholder="API Endpoint" style="display:none;width:200px;padding:6px 8px;border:1px solid var(--border);border-radius:6px;font-size:12px;background:var(--bg2);color:var(--text);outline:none">
   <input type="text" id="custMdl" placeholder="Model Name" style="display:none;width:140px;padding:6px 8px;border:1px solid var(--border);border-radius:6px;font-size:12px;background:var(--bg2);color:var(--text);outline:none">
+  <div style="display:flex;align-items:center;gap:4px">
+    <span class="key-dot" id="keyDot" style="margin-right:4px"></span>
+    <input type="password" id="apiKeyIn" placeholder="API Key (sk-...)" autocomplete="off" style="width:190px;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;background:var(--bg2);color:var(--text);outline:none;font-family:inherit">
+    <button class="nav-btn" onclick="togKeyVis()" style="padding:4px 8px;font-size:14px" title="显示/隐藏">👁️</button>
+  </div>
   <span class="nav-spacer"></span>
-  <button class="nav-btn" onclick="openApiModal()"><span class="key-dot" id="keyDot"></span> API 密钥</button>
-  <button class="nav-btn" onclick="openTutorial()">📖 使用教程</button>
+  <button class="nav-btn" onclick="testConn()">🔗 测试</button>
+  <button class="nav-btn" onclick="openTutorial()">📖 教程</button>
   <button class="theme-btn" onclick="togTheme()" id="thmBtn">🌙</button>
 </header>
 
@@ -313,30 +318,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Micr
 <!-- Toast -->
 <div class="toast-wrap" id="toastWrap"></div>
 
-<!-- API Key Modal -->
-<div class="modal-overlay hidden" id="apiModal">
-  <div class="modal-box">
-    <h3>🔑 API 密钥管理</h3>
-    <div class="field">
-      <label>API Key</label>
-      <div class="row">
-        <input type="password" id="apiKeyIn" placeholder="sk-... 或您的 API Key" autocomplete="off">
-        <button class="btn-sm" onclick="togKeyVis()" style="flex-shrink:0">👁️</button>
-      </div>
-      <p class="api-warn">🔒 密钥仅存储在浏览器本地，不会上传至第三方服务器</p>
-    </div>
-    <div class="field">
-      <label>测试连接</label>
-      <button class="btn-sm" onclick="testConn()">🔗 测试连接</button>
-      <span id="testResult" style="font-size:12px;margin-left:8px;"></span>
-    </div>
-    <div class="modal-acts">
-      <button class="btn btn-sm btn-outline" onclick="closeApiModal()">取消</button>
-      <button class="btn btn-sm" style="background:var(--accent);color:#fff" onclick="saveApiKey()">💾 保存密钥</button>
-    </div>
-  </div>
-</div>
-
 <!-- Tutorial Modal -->
 <div class="modal-overlay hidden" id="tutModal">
   <div class="modal-box">
@@ -397,41 +378,30 @@ document.addEventListener('DOMContentLoaded',()=>{
   z.addEventListener('dragleave',()=>z.classList.remove('drag-over'));
   z.addEventListener('drop',e=>{e.preventDefault();z.classList.remove('drag-over');let f=e.dataTransfer.files;if(f.length>0)procFile(f[0]);if(f.length>1)tst('一次只能上传一张参考图','w')});
   document.getElementById('promptIn').addEventListener('input',updGenBtn);
-  document.getElementById('apiKeyIn').addEventListener('input',()=>{S.key=document.getElementById('apiKeyIn').value});
+  document.getElementById("apiKeyIn").addEventListener("input",()=>{S.key=document.getElementById("apiKeyIn").value;localStorage.setItem("aikey",S.key);updKeyDot();updGenBtn()});
   document.getElementById('custEp').addEventListener('input',()=>{S.ep=document.getElementById('custEp').value;localStorage.setItem('aiep',S.ep)});
   document.getElementById('custMdl').addEventListener('input',()=>{S.mdlName=document.getElementById('custMdl').value;localStorage.setItem('aimdn',S.mdlName)});
   updThemeIcon();
   (()=>{let s=localStorage.getItem('aitheme');if(s)document.documentElement.setAttribute('data-theme',s);else if(window.matchMedia('(prefers-color-scheme:dark)').matches)document.documentElement.setAttribute('data-theme','dark')})();
 });
 
-function updKeyDot(){document.getElementById('keyDot').classList.toggle('on',!!S.key)}
+function updKeyDot(){let k=document.getElementById('apiKeyIn').value.trim();S.key=k;document.getElementById('keyDot').classList.toggle('on',!!k)}
 function updWeight(){document.getElementById('wVal').textContent=document.getElementById('refWeight').value;S.refWeight=parseFloat(document.getElementById('refWeight').value)}
 function updCnt(){document.getElementById('charCnt').textContent=document.getElementById('promptIn').value.length+' / 2000'}
+
+// Nav API key
+function togKeyVis(){let el=document.getElementById('apiKeyIn');el.type=el.type==='password'?'text':'password'}
+function testConn(){let k=document.getElementById('apiKeyIn').value.trim();if(!k){tst('请先填入 API Key','e');return}
+  let ep=S.mdl==='custom'?document.getElementById('custEp').value.trim():(PR[S.mdl]?.ep||'');if(!ep){tst('请先配置 API Endpoint','e');return}
+  tst('正在测试...','w');
+  let c=new AbortController(),to=setTimeout(()=>c.abort(),10000);
+  fetch(ep,{method:'POST',headers:{'Authorization':'Bearer '+k,'Content-Type':'application/json'},body:JSON.stringify({model:S.mdlName||'gpt-image-2-all',prompt:'test',n:1,size:'256x256'}),signal:c.signal})
+    .then(function(r){clearTimeout(to);if(r.ok){tst('连接成功','o');updKeyDot()}else{tst('连接失败 HTTP '+r.status,'e')}})
+    .catch(function(e){clearTimeout(to);tst('连接失败: '+e.message,'e')});}
 
 // ===== Nav =====
 function togTheme(){let h=document.documentElement;h.setAttribute('data-theme',h.getAttribute('data-theme')==='dark'?'light':'dark');localStorage.setItem('aitheme',h.getAttribute('data-theme'));updThemeIcon()}
 function updThemeIcon(){document.getElementById('thmBtn').textContent=document.documentElement.getAttribute('data-theme')==='dark'?'☀️':'🌙'}
-
-// ===== API Modal =====
-function openApiModal(){document.getElementById('apiModal').classList.remove('hidden');document.getElementById('apiKeyIn').value=S.key;document.getElementById('testResult').textContent=''}
-function closeApiModal(){document.getElementById('apiModal').classList.add('hidden')}
-function saveApiKey(){S.key=document.getElementById('apiKeyIn').value.trim();localStorage.setItem('aikey',S.key);updKeyDot();updGenBtn();closeApiModal();tst('密钥已保存 ✓','o')}
-function togKeyVis(){let el=document.getElementById('apiKeyIn');el.type=el.type==='password'?'text':'password'}
-function testConn(){let k=S.key||document.getElementById('apiKeyIn').value.trim();let ep=S.mdl==='custom'?document.getElementById('custEp').value.trim():(PR[S.mdl]?.ep||'');if(!k){tst('请先填入 API Key','e');return}if(!ep){tst('请先配置 API Endpoint','e');return}
-  document.getElementById('testResult').textContent='测试中...';document.getElementById('testResult').style.color='var(--text3)';
-  let c=new AbortController(),t=setTimeout(()=>c.abort(),10000);
-  fetch(ep,{method:'POST',headers:{'Authorization':'Bearer '+k,'Content-Type':'application/json'},body:JSON.stringify({model:S.mdlName||'gpt-image-2-all',prompt:'test',n:1,size:'256x256'}),signal:c.signal})
-      .then(function(r){clearTimeout(t);if(r.ok){document.getElementById("testResult").textContent="OK";document.getElementById("testResult").style.color="var(--green)";tst("OK","o")}else{document.getElementById("testResult").textContent="FAIL "+r.status;document.getElementById("testResult").style.color="var(--red)";tst("FAIL "+r.status,"e")}})
-      .catch(function(e){clearTimeout(t);document.getElementById("testResult").textContent="FAIL";document.getElementById("testResult").style.color="var(--red)";tst("FAIL: "+e.message,"e")});
-}
-
-// ===== Tutorial =====
-function openTutorial(){document.getElementById('tutModal').classList.remove('hidden')}
-function closeTutorial(){document.getElementById('tutModal').classList.add('hidden')}
-
-// ===== Confirm =====
-function showCfm(title,msg,cb){document.getElementById('cfmTitle').textContent=title;document.getElementById('cfmMsg').textContent=msg;document.getElementById('cfmOk').onclick=()=>{cb();closeCfm()};document.getElementById('cfmModal').classList.remove('hidden');cfmCb=cb}
-function closeCfm(){document.getElementById('cfmModal').classList.add('hidden');cfmCb=null}
 
 // ===== Model =====
 function onMdlChg(){let m=document.getElementById('mdlSel').value;S.mdl=m;localStorage.setItem('aimdl',m);
@@ -462,7 +432,7 @@ function togAdv(){document.getElementById('advPan').classList.toggle('hidden');l
 
 // ===== Generate =====
 function updGenBtn(){let p=document.getElementById('promptIn').value.trim();document.getElementById('genBtn').disabled=!p||!S.key||S.gen}
-async function generate(){let prompt=document.getElementById('promptIn').value.trim(),key=S.key||document.getElementById('apiKeyIn').value.trim();if(!key){showCfm('⚠️ 缺少 API Key','请先填写有效的 API Key。点击右上角「API 密钥」按钮进行配置。',()=>{openApiModal()});return}if(!prompt||S.gen)return;
+async function generate(){let prompt=document.getElementById('promptIn').value.trim(),key=S.key||document.getElementById('apiKeyIn').value.trim();if(!key){showCfm("⚠️ 缺少 API Key","请在顶部导航栏输入 API Key。",()=>{document.getElementById("apiKeyIn").focus()});return}if(!prompt||S.gen)return;
   let ep=S.mdl==='custom'?document.getElementById('custEp').value.trim():(PR[S.mdl]?.ep||''),mdlName=S.mdl==='custom'?document.getElementById('custMdl').value.trim():(PR[S.mdl]?.mdl||'');
   if(!ep){tst('请先配置 API Endpoint','e');return}
   S.gen=true;S.st=Date.now();updGenBtn();document.getElementById('genBtn').innerHTML='⏹️ 停止生成';
@@ -526,7 +496,7 @@ function makeThumb(url,mx){return new Promise((r,j)=>{let img=new Image();img.cr
 function esc(s){let d=document.createElement('div');d.textContent=s;return d.innerHTML}
 function escJS(s){return s.replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/"/g,'\\"').replace(/\n/g,'\\n')}
 function tst(msg,type){let c=document.getElementById('toastWrap'),t=document.createElement('div');t.className='toast '+(type==='e'?'e':type==='o'?'o':'w');t.textContent=msg;c.appendChild(t);setTimeout(()=>{t.style.opacity='0';t.style.transition='opacity .3s';setTimeout(()=>t.remove(),300)},3000)}
-document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeLb();closeCfm();closeApiModal();closeTutorial()}if((e.ctrlKey||e.metaKey)&&e.key==='Enter'&&!S.gen)generate()});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeLb();closeCfm();closeTutorial()}if((e.ctrlKey||e.metaKey)&&e.key==='Enter'&&!S.gen)generate()});
 </script>
 </body>
 </html>
